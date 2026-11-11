@@ -11,9 +11,8 @@ func ShowMetrics(success, failed *int, total int) {
 	app := tview.NewApplication()
 	text := tview.NewTextView().
 		SetTextAlign(tview.AlignCenter).
-		SetDynamicColors(true).
-		SetBorder(true).
-		SetTitle("Real-Time Metrics")
+		SetDynamicColors(true)
+	text.SetBorder(true).SetTitle("Real-Time Metrics")
 
 	go func() {
 		for *success+*failed < total {

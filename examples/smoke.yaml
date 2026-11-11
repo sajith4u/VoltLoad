@@ -1,0 +1,14 @@
+# Example scenario: voltload validate examples/smoke.yaml && voltload run examples/smoke.yaml
+name: Example smoke test
+method: GET
+url: https://example.com
+headers:
+  Accept: text/html
+timeoutMs: 10000
+stages:
+  - {durationSec: 5, vus: 5}   # ramp 0 -> 5 VUs
+  - {durationSec: 10, vus: 5}  # hold
+  - {durationSec: 5, vus: 0}   # ramp down
+thresholds:
+  - {metric: p95, op: "<", value: 1000}
+  - {metric: errorRate, op: "<", value: 1}

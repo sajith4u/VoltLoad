@@ -1,0 +1,8 @@
+build/bin
+node_modules
+# keep the placeholder so `go:embed all:frontend/dist` compiles on a fresh clone
+frontend/dist/*
+!frontend/dist/gitkeep
+voltload
+*.log
+frontend/package.json.md5
