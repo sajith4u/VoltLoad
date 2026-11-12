@@ -15,8 +15,10 @@ A local-first HTTP API load testing tool. It runs as a desktop app (built with [
 
 ![VoltLoad run view with timeline charts and the run log](screens/Screenshot1.png)
 
-## Features (MVP)
+## Features
 
+- **Sign-in and sidebar navigation**: the app opens on a login page. The first account is **admin / admin**; change the password from the sidebar ("Change password"). In browser mode (`voltload serve`) every API call, the event stream and the reports need the session, and the CLI is not affected
+- **Frontend analysis** (sidebar → Frontend analysis): enter a URL and VoltLoad loads it twice in headless Chrome (empty cache, then a repeat visit). It reports Core Web Vitals (TTFB, FCP, LCP, TBT, CLS) and page load, where the bytes go, every API call and request on a timeline, what the browser cached, and the React version, build type (development/production) and framework. It ends with ranked recommendations: slow or chained API calls, failed requests, large JavaScript bundles, missing compression or caching, large images, render-blocking files, layout shifts and more. Results are saved in a history. Needs Chrome, Chromium or Edge installed (or `VOLTLOAD_CHROME=/path/to/chrome`)
 - **Performance suites**: saved, re-runnable load tests, created through a step-by-step flow (details → request → workload → thresholds → review)
 - **Dashboard**: one card per suite with a pass/fail strip of its recent runs, last status, success rate, average response time and a Run button
 - **Trend charts** per suite across runs: average response time, hits/sec, p95 latency, error rate, total requests, duration
@@ -32,6 +34,18 @@ A local-first HTTP API load testing tool. It runs as a desktop app (built with [
 - **YAML scenarios** shared by the desktop app (import/export) and the CLI. See [examples/smoke.yaml](examples/smoke.yaml)
 
 History is stored in `~/.local/share/voltload/database/voltload.db` on Linux and `%APPDATA%\VoltLoad\database\voltload.db` on Windows.
+
+## Architecture
+
+![VoltLoad architecture: three clients (desktop window, browser, CLI) reach one Go application with a shared load engine, a SQLite database and report generators, all on the local machine](docs/architecture.png)
+
+- **One engine, three front doors.** The desktop window, the browser (`voltload serve`) and the CLI all drive the same load engine in `internal/loader`.
+- **Desktop and browser share the same backend code** (`internal/gui`). The desktop window reaches it through Wails bindings and events. The browser reaches it over HTTP (`POST /api/call/{Method}`) and Server-Sent Events, and that server only accepts loopback requests.
+- **Every virtual user is its own user**: a goroutine with its own connection and cookie jar. A stage controller raises and lowers how many of them are active, and the collector turns their results into percentiles, thresholds, a timeline and a sampled live log.
+- **Everything is local.** Suites and run history live in an embedded SQLite file, the backend log in a text file, and reports (PDF, HTML, CSV, JSON) are generated on demand. The only network traffic is to the API you are testing.
+- **The CLI uses the engine, YAML scenarios and reports directly.** It does not save history to the database.
+
+The editable diagram source is [docs/architecture.mmd](docs/architecture.mmd) (Mermaid). After editing it, re-render it, for example at [mermaid.live](https://mermaid.live), and replace `docs/architecture.png`.
 
 ## Tech Stack
 
@@ -56,8 +70,8 @@ Run `wails doctor` to check your setup.
 Clone the project
 
 ```bash
-  git clone https://github.com/sajith4u/gohammer.git
-  cd gohammer
+  git clone https://github.com/sajith4u/VoltLoad.git
+  cd VoltLoad
 ```
 
 Desktop app, with live reload

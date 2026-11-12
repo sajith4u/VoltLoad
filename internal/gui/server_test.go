@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/http/httptest"
 	"strconv"
 	"strings"
@@ -15,6 +16,9 @@ import (
 	"testing/fstest"
 	"time"
 )
+
+// client is signed in as admin/admin by startServer; its cookie jar carries the session.
+var client *http.Client
 
 // startServer runs Serve on a random loopback port with a temp data dir and returns its URL.
 func startServer(t *testing.T) string {
@@ -32,6 +36,13 @@ func startServer(t *testing.T) string {
 	})
 	select {
 	case u := <-urls:
+		jar, _ := cookiejar.New(nil)
+		client = &http.Client{Jar: jar}
+		resp, err := client.Post(u+"/api/call/Login", "application/json", strings.NewReader(`["admin","admin"]`))
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("default login: %v %v", resp, err)
+		}
+		resp.Body.Close()
 		return u
 	case err := <-done:
 		t.Fatalf("serve failed: %v", err)
@@ -48,7 +59,7 @@ func rpc(t *testing.T, base, method string, out any, args ...any) (status int, e
 		args = []any{}
 	}
 	body, _ := json.Marshal(args)
-	resp, err := http.Post(base+"/api/call/"+method, "application/json", bytes.NewReader(body))
+	resp, err := client.Post(base+"/api/call/"+method, "application/json", bytes.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,13 +87,13 @@ func TestServeEndToEnd(t *testing.T) {
 	base := startServer(t)
 
 	// the UI is served
-	if resp, err := http.Get(base + "/"); err != nil || resp.StatusCode != 200 {
+	if resp, err := client.Get(base + "/"); err != nil || resp.StatusCode != 200 {
 		t.Fatalf("index: %v %v", resp, err)
 	}
 
 	// open the event stream before running, like the frontend does
 	req, _ := http.NewRequest("GET", base+"/api/events", nil)
-	stream, err := http.DefaultClient.Do(req)
+	stream, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +156,7 @@ wait:
 		t.Fatalf("ListRuns: %+v %q", runs, e)
 	}
 	for format, prefix := range map[string]string{"pdf": "%PDF-", "json": "{", "csv": "metric,value", "html": "<!doctype html>"} {
-		resp, err := http.Get(base + "/api/runs/" + itoa(runs[0].ID) + "/report." + format + "?download=1")
+		resp, err := client.Get(base + "/api/runs/" + itoa(runs[0].ID) + "/report." + format + "?download=1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +189,7 @@ func TestServeRefusesUnsafeRequests(t *testing.T) {
 		if origin != "" {
 			req.Header.Set("Origin", origin)
 		}
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -207,5 +218,55 @@ func TestServeRefusesUnsafeRequests(t *testing.T) {
 	}
 	if err := Serve(context.Background(), fstest.MapFS{}, "0.0.0.0:0", t.TempDir(), nil); err == nil || !strings.Contains(err.Error(), "loopback") {
 		t.Errorf("non-loopback listen must be refused, got %v", err)
+	}
+}
+
+func TestLogin(t *testing.T) {
+	base := startServer(t)
+	plain := &http.Client{} // no session cookie
+	status := func(c *http.Client, method, path, body string) int {
+		req, _ := http.NewRequest(method, base+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := c.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.StatusCode
+	}
+	// without a session nothing works, including the event stream and reports
+	for _, c := range [][3]string{{"POST", "/api/call/ListSuites", "[]"}, {"GET", "/api/events", ""}, {"GET", "/api/runs/1/report.pdf", ""}} {
+		if got := status(plain, c[0], c[1], c[2]); got != http.StatusUnauthorized {
+			t.Errorf("%s %s without login: %d, want 401", c[0], c[1], got)
+		}
+	}
+	if got := status(plain, "POST", "/api/call/Login", `["admin","wrong"]`); got == 200 {
+		t.Error("wrong password accepted")
+	}
+	if got := status(plain, "POST", "/api/call/ListSuites", "[]"); got != http.StatusUnauthorized {
+		t.Errorf("failed login must not start a session: %d", got)
+	}
+	var who string
+	rpc(t, base, "Session", &who)
+	if who != "admin" {
+		t.Errorf("session user %q", who)
+	}
+	// change the password, then the old one stops working
+	if _, e := rpc(t, base, "ChangePassword", nil, "admin", "wrong", "newpass"); e == "" {
+		t.Error("changed password with a wrong current password")
+	}
+	if _, e := rpc(t, base, "ChangePassword", nil, "admin", "admin", "newpass"); e != "" {
+		t.Fatal(e)
+	}
+	if got := status(plain, "POST", "/api/call/Login", `["admin","admin"]`); got == 200 {
+		t.Error("old password still works")
+	}
+	if got := status(plain, "POST", "/api/call/Login", `["admin","newpass"]`); got != 200 {
+		t.Errorf("new password rejected: %d", got)
+	}
+	// logging out ends the session
+	rpc(t, base, "Logout", nil)
+	if got := status(client, "POST", "/api/call/ListSuites", "[]"); got != http.StatusUnauthorized {
+		t.Errorf("after logout: %d, want 401", got)
 	}
 }

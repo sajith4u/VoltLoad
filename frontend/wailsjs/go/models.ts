@@ -251,6 +251,30 @@ export namespace loader {
 
 export namespace store {
 	
+	export class AnalysisSummary {
+	    id: number;
+	    url: string;
+	    startedAt: string;
+	    lcpMs: number;
+	    loadMs: number;
+	    issues: number;
+	    react: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new AnalysisSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.url = source["url"];
+	        this.startedAt = source["startedAt"];
+	        this.lcpMs = source["lcpMs"];
+	        this.loadMs = source["loadMs"];
+	        this.issues = source["issues"];
+	        this.react = source["react"];
+	    }
+	}
 	export class RunSummary {
 	    id: number;
 	    name: string;
@@ -367,6 +391,199 @@ export namespace store {
 		    return a;
 		}
 	}
+
+}
+
+export namespace webperf {
+	
+	export class Recommendation {
+	    severity: string;
+	    title: string;
+	    detail: string;
+	    items: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Recommendation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.severity = source["severity"];
+	        this.title = source["title"];
+	        this.detail = source["detail"];
+	        this.items = source["items"];
+	    }
+	}
+	export class Asset {
+	    url: string;
+	    kind: string;
+	    protocol: string;
+	    startMs: number;
+	    durationMs: number;
+	    waitMs: number;
+	    transferBytes: number;
+	    encodedBytes: number;
+	    decodedBytes: number;
+	    status: number;
+	    renderBlocking: boolean;
+	    thirdParty: boolean;
+	    repeat: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Asset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.kind = source["kind"];
+	        this.protocol = source["protocol"];
+	        this.startMs = source["startMs"];
+	        this.durationMs = source["durationMs"];
+	        this.waitMs = source["waitMs"];
+	        this.transferBytes = source["transferBytes"];
+	        this.encodedBytes = source["encodedBytes"];
+	        this.decodedBytes = source["decodedBytes"];
+	        this.status = source["status"];
+	        this.renderBlocking = source["renderBlocking"];
+	        this.thirdParty = source["thirdParty"];
+	        this.repeat = source["repeat"];
+	    }
+	}
+	export class Load {
+	    status: number;
+	    ttfbMs: number;
+	    fcpMs: number;
+	    lcpMs: number;
+	    domContentLoadedMs: number;
+	    loadMs: number;
+	    tbtMs: number;
+	    longTasks: number;
+	    cls: number;
+	    requests: number;
+	    transferBytes: number;
+	    decodedBytes: number;
+	    domNodes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Load(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.status = source["status"];
+	        this.ttfbMs = source["ttfbMs"];
+	        this.fcpMs = source["fcpMs"];
+	        this.lcpMs = source["lcpMs"];
+	        this.domContentLoadedMs = source["domContentLoadedMs"];
+	        this.loadMs = source["loadMs"];
+	        this.tbtMs = source["tbtMs"];
+	        this.longTasks = source["longTasks"];
+	        this.cls = source["cls"];
+	        this.requests = source["requests"];
+	        this.transferBytes = source["transferBytes"];
+	        this.decodedBytes = source["decodedBytes"];
+	        this.domNodes = source["domNodes"];
+	    }
+	}
+	export class Vital {
+	    key: string;
+	    name: string;
+	    value: number;
+	    unit: string;
+	    good: number;
+	    poor: number;
+	    rating: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Vital(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.name = source["name"];
+	        this.value = source["value"];
+	        this.unit = source["unit"];
+	        this.good = source["good"];
+	        this.poor = source["poor"];
+	        this.rating = source["rating"];
+	    }
+	}
+	export class ReactInfo {
+	    detected: boolean;
+	    version: string;
+	    devBuild: boolean;
+	    framework: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReactInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.detected = source["detected"];
+	        this.version = source["version"];
+	        this.devBuild = source["devBuild"];
+	        this.framework = source["framework"];
+	    }
+	}
+	export class Analysis {
+	    id: number;
+	    url: string;
+	    finalUrl: string;
+	    startedAt: string;
+	    browser: string;
+	    react: ReactInfo;
+	    vitals: Vital[];
+	    first: Load;
+	    repeat: Load;
+	    assets: Asset[];
+	    recommendations: Recommendation[];
+	    settled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Analysis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.url = source["url"];
+	        this.finalUrl = source["finalUrl"];
+	        this.startedAt = source["startedAt"];
+	        this.browser = source["browser"];
+	        this.react = this.convertValues(source["react"], ReactInfo);
+	        this.vitals = this.convertValues(source["vitals"], Vital);
+	        this.first = this.convertValues(source["first"], Load);
+	        this.repeat = this.convertValues(source["repeat"], Load);
+	        this.assets = this.convertValues(source["assets"], Asset);
+	        this.recommendations = this.convertValues(source["recommendations"], Recommendation);
+	        this.settled = source["settled"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	
+	
+	
 
 }
 

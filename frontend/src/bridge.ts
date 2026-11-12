@@ -9,6 +9,9 @@ export const isDesktop = !!(w.go?.gui?.App && w.runtime);
 /** Shown when the browser can't reach the backend. */
 export const OFFLINE = 'Cannot reach the VoltLoad backend. Start it with `voltload serve` and reload this page.';
 
+/** Fired when the backend says the session is gone (for example it restarted), so the app shows the login page. */
+export const UNAUTH = 'voltload:unauth';
+
 async function call(method: string, args: unknown[]) {
     let resp: Response;
     try {
@@ -18,18 +21,28 @@ async function call(method: string, args: unknown[]) {
     } catch {
         throw new Error(OFFLINE);
     }
+    if (resp.status === 401) window.dispatchEvent(new Event(UNAUTH));
     const body = await resp.json().catch(() => null);
     if (!body) throw new Error(resp.status === 404 || resp.status >= 500 ? OFFLINE : `HTTP ${resp.status}`);
     if (body.error) throw new Error(body.error);
     return body.result;
 }
 
-if (!isDesktop) {
-    const handlers: Record<string, Set<(data: unknown) => void>> = {};
-    const source = new EventSource('/api/events'); // reconnects on its own if the backend restarts
-    const listen = (name: string) => source.addEventListener(name, e =>
-        handlers[name]?.forEach(cb => cb(JSON.parse((e as MessageEvent).data))));
+let source: EventSource | undefined;
+const handlers: Record<string, Set<(data: unknown) => void>> = {};
+const listen = (name: string) => source?.addEventListener(name, e =>
+    handlers[name]?.forEach(cb => cb(JSON.parse((e as MessageEvent).data))));
 
+/** Browser mode: opens (or closes) the live event stream. The server only streams to signed-in users,
+ *  so this is called after login and on logout rather than at page load. No-op in the desktop window. */
+export function connectEvents(on: boolean) {
+    if (isDesktop) return;
+    source?.close();
+    source = on ? new EventSource('/api/events') : undefined; // reconnects on its own if the backend restarts
+    Object.keys(handlers).forEach(listen);
+}
+
+if (!isDesktop) {
     w.go = {gui: {App: new Proxy({}, {get: (_, method: string) => (...args: unknown[]) => call(method, args)})}};
     w.runtime = {
         EventsOnMultiple(name: string, cb: (data: unknown) => void) {

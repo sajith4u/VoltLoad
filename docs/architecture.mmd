@@ -1,0 +1,61 @@
+flowchart TB
+    subgraph clients["Clients"]
+        direction LR
+        desktop["<b>Desktop window</b><br/>voltload · wails dev<br/>React UI in a Wails window"]
+        browser["<b>Browser</b><br/>voltload serve<br/>same React UI, 127.0.0.1 only"]
+        cli["<b>CLI</b><br/>run · validate · report<br/>headless, YAML scenarios"]
+    end
+
+    subgraph gui["Application services · internal/gui"]
+        direction LR
+        server["<b>HTTP + SSE server</b><br/>POST /api/call/#123;Method#125;<br/>GET /api/events<br/>loopback + Host/Origin checks"]
+        appsvc["<b>App</b><br/>suites · run control · history<br/>exports · YAML import/export · logging"]
+        server --> appsvc
+    end
+
+    subgraph core["Shared core"]
+        direction LR
+        reports["<b>reports</b><br/>PDF · HTML · CSV · JSON"]
+        subgraph engine["Load engine"]
+            direction TB
+            stages["<b>Stage controller</b><br/>ramps active VUs"]
+            vus["<b>Virtual users</b><br/>one goroutine each, own<br/>connection + cookie jar, think time"]
+            collect["<b>Metrics + logs</b><br/>percentiles · status codes<br/>per-VU stats · thresholds<br/>PASS / FAIL · sampled log"]
+            stages --> vus --> collect
+        end
+    end
+
+    store["<b>internal/store</b><br/>suites · runs · auto migrations"]
+
+    subgraph disk["Local storage"]
+        direction LR
+        db[("database/voltload.db<br/>SQLite")]
+        logfile["logs/voltload.log"]
+        pdfs["reports/*.pdf"]
+    end
+
+    target["<b>Target API</b><br/>HTTP / HTTPS"]
+
+    desktop -- "Wails bindings + events" --> appsvc
+    browser -- "fetch + Server-Sent Events" --> server
+    cli -- "uses the core directly, saves no history" --> core
+    appsvc <-- "start / stop ⇄ progress, logs, result" --> core
+    appsvc --> store
+    vus -- "requests ⇄ responses" --> target
+    store --> db
+    appsvc -.-> logfile
+    reports -- "desktop: View PDF" --> pdfs
+
+    classDef client fill:#eeecfc,stroke:#4b3fd1,color:#1d2130
+    classDef comp fill:#ffffff,stroke:#666c7d,color:#1d2130
+    classDef data fill:#f7f8fb,stroke:#9aa1b3,color:#1d2130
+    classDef ext fill:#fff7e0,stroke:#d99a00,color:#1d2130
+    class desktop,browser,cli client
+    class appsvc,server,stages,vus,collect,reports,store comp
+    class db,logfile,pdfs data
+    class target ext
+    style clients fill:#fbfbfe,stroke:#cdd2de,color:#1d2130
+    style gui fill:#f6f7fb,stroke:#cdd2de,color:#1d2130
+    style core fill:#f6f7fb,stroke:#cdd2de,color:#1d2130
+    style engine fill:#ffffff,stroke:#9aa1b3,color:#1d2130
+    style disk fill:#fbfbfe,stroke:#cdd2de,color:#1d2130

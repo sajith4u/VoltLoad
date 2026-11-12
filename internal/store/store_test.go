@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"voltload/internal/loader"
+	"voltload/internal/webperf"
 )
 
 func TestStoreRoundTrip(t *testing.T) {
@@ -106,5 +107,33 @@ func TestMigrateFromV1(t *testing.T) {
 	var suite sql.NullInt64
 	if err := s.db.QueryRow(`SELECT name, suite_id FROM runs`).Scan(&name, &suite); err != nil || name != "old" || suite.Valid {
 		t.Fatalf("old row: name=%q suite=%v err=%v", name, suite, err)
+	}
+}
+
+func TestAnalysesRoundTrip(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "a.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	a := webperf.Analysis{URL: "https://example.com/", React: webperf.ReactInfo{Detected: true}, First: webperf.Load{LCPMs: 2100, LoadMs: 3000},
+		Recommendations: []webperf.Recommendation{{Severity: "critical"}, {Severity: "warning"}, {Severity: "info"}}}
+	id, err := s.SaveAnalysis(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := s.ListAnalyses(10)
+	if err != nil || len(list) != 1 || list[0].Issues != 2 || !list[0].React || list[0].LCPMs != 2100 {
+		t.Fatalf("list: %+v %v", list, err)
+	}
+	got, err := s.GetAnalysis(id)
+	if err != nil || got.ID != id || got.URL != a.URL || len(got.Recommendations) != 3 {
+		t.Fatalf("get: %+v %v", got, err)
+	}
+	if err := s.DeleteAnalysis(id); err != nil {
+		t.Fatal(err)
+	}
+	if list, _ := s.ListAnalyses(10); len(list) != 0 {
+		t.Fatalf("not deleted: %+v", list)
 	}
 }

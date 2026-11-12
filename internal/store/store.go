@@ -46,6 +46,20 @@ var migrations = []string{
 	`ALTER TABLE runs ADD COLUMN avg_ms REAL NOT NULL DEFAULT 0`,
 	`ALTER TABLE runs ADD COLUMN duration_sec REAL NOT NULL DEFAULT 0`,
 	`CREATE INDEX runs_suite ON runs (suite_id, id)`,
+	// the first-run account is admin / admin (bcrypt); the user changes it from the app
+	`CREATE TABLE users (username TEXT PRIMARY KEY, pass_hash TEXT NOT NULL);
+	INSERT INTO users VALUES ('admin', '$2a$10$YEMiGs9WhEvsHI1mjrMOTuLyNZgdo.GEgvPzNqJeYL6GsrDo.eEQm')`,
+	// frontend analyses (internal/webperf); summary columns for the list, the full result as JSON
+	`CREATE TABLE web_analyses (
+		id          INTEGER PRIMARY KEY AUTOINCREMENT,
+		url         TEXT NOT NULL,
+		started_at  TIMESTAMP NOT NULL,
+		lcp_ms      REAL NOT NULL,
+		load_ms     REAL NOT NULL,
+		issues      INTEGER NOT NULL,
+		react       INTEGER NOT NULL,
+		result_json TEXT NOT NULL
+	)`,
 }
 
 type Store struct{ db *sql.DB }

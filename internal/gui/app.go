@@ -15,6 +15,7 @@ import (
 
 	"voltload/internal/loader"
 	"voltload/internal/store"
+	"voltload/internal/webperf"
 	"voltload/reports"
 
 	"github.com/wailsapp/wails/v2"
@@ -48,7 +49,10 @@ type App struct {
 	logger  *log.Logger // backend log: terminal plus <data dir>/logs/voltload.log
 	logFile *os.File
 
+	analyzing sync.Mutex // one frontend analysis at a time: each runs its own Chrome
+
 	mu      sync.Mutex
+	user    string             // desktop window: who is signed in. Serve mode keeps this per browser cookie instead (server.go)
 	cancel  context.CancelFunc // non-nil while a test runs
 	running int64              // suite ID of the running test
 	wg      sync.WaitGroup
@@ -185,6 +189,97 @@ func (a *App) db() (*store.Store, error) {
 		return nil, errors.New("history database is unavailable; check the app log")
 	}
 	return a.store, nil
+}
+
+// Login checks the credentials. The desktop window only gates its UI on this (shortcut: the bound
+// methods themselves aren't guarded, since the window is local); `voltload serve` enforces a session
+// cookie on every call, see server.go.
+func (a *App) Login(user, pass string) error {
+	db, err := a.db()
+	if err != nil {
+		return err
+	}
+	if err := db.CheckLogin(user, pass); err != nil {
+		a.logf("sign-in failed for %q", user)
+		return err
+	}
+	a.mu.Lock()
+	a.user = user
+	a.mu.Unlock()
+	a.logf("%q signed in", user)
+	return nil
+}
+
+// Session returns the signed-in user, or "" (desktop window; serve mode answers from the cookie).
+func (a *App) Session() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.user
+}
+
+func (a *App) Logout() {
+	a.mu.Lock()
+	a.user = ""
+	a.mu.Unlock()
+}
+
+func (a *App) ChangePassword(user, oldPass, newPass string) error {
+	db, err := a.db()
+	if err != nil {
+		return err
+	}
+	if err := db.SetPassword(user, oldPass, newPass); err != nil {
+		return err
+	}
+	a.logf("password changed for %q", user)
+	return nil
+}
+
+// AnalyzeURL measures how a web frontend loads in headless Chrome (see internal/webperf), saves the
+// result and returns it. It takes 10–60 seconds.
+func (a *App) AnalyzeURL(url string) (webperf.Analysis, error) {
+	if !a.analyzing.TryLock() {
+		return webperf.Analysis{}, errors.New("an analysis is already running; wait for it to finish")
+	}
+	defer a.analyzing.Unlock()
+	a.logf("[frontend] analysing %s", url)
+	res, err := webperf.Analyze(context.Background(), url)
+	if err != nil {
+		a.logf("[frontend] %s: %v", url, err)
+		return res, err
+	}
+	a.logf("[frontend] %s: load %.0f ms, LCP %.0f ms, %d requests, %d recommendations",
+		res.URL, res.First.LoadMs, res.First.LCPMs, res.First.Requests, len(res.Recommendations))
+	if db, err := a.db(); err == nil {
+		if res.ID, err = db.SaveAnalysis(res); err != nil {
+			a.logf("[frontend] save analysis: %v", err)
+		}
+	}
+	return res, nil
+}
+
+func (a *App) ListAnalyses() ([]store.AnalysisSummary, error) {
+	db, err := a.db()
+	if err != nil {
+		return nil, err
+	}
+	return db.ListAnalyses(50)
+}
+
+func (a *App) GetAnalysis(id int64) (webperf.Analysis, error) {
+	db, err := a.db()
+	if err != nil {
+		return webperf.Analysis{}, err
+	}
+	return db.GetAnalysis(id)
+}
+
+func (a *App) DeleteAnalysis(id int64) error {
+	db, err := a.db()
+	if err != nil {
+		return err
+	}
+	return db.DeleteAnalysis(id)
 }
 
 func (a *App) ListSuites() ([]store.SuiteSummary, error) {
