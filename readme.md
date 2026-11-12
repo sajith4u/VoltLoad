@@ -5,6 +5,16 @@
 
 A local-first HTTP API load testing tool. It runs as a desktop app (built with [Wails](https://wails.io)) or headless from the terminal, and both use the same Go engine. No server, database or internet connection is required apart from the target you are testing.
 
+## Screenshots
+
+**Dashboard**: one card per performance suite, with a pass/fail strip of its recent runs, the last status, success rate and average response time.
+
+![VoltLoad dashboard showing a performance suite card](screens/Screenshot2.png)
+
+**Run view**: live and finished runs show requests/sec, average latency and active virtual users over time, followed by the run log.
+
+![VoltLoad run view with timeline charts and the run log](screens/Screenshot1.png)
+
 ## Features (MVP)
 
 - **Performance suites**: saved, re-runnable load tests, created through a step-by-step flow (details → request → workload → thresholds → review)
@@ -56,11 +66,15 @@ Desktop app, with live reload
   wails dev
 ```
 
-UI preview in a browser (no GTK/WebKit needed). It shows sample data and simulated runs, and sends no real requests:
+Full app in your browser (no GTK/WebKit needed). It's the same backend as the desktop app: real load, the same database, reports and logs. It listens on 127.0.0.1 only:
 
 ```bash
-  cd frontend && npm install && npm run dev   # then open the printed http://localhost:5173 URL
+  cd frontend && npm install && npm run build && cd ..
+  go build -o voltload .
+  ./voltload serve --open        # http://127.0.0.1:7878 (--addr, --data-dir to change)
 ```
+
+Working on the UI with hot reload: `cd frontend && npm run dev` (or `wails dev`). The Vite dev server builds and starts the Go backend on 127.0.0.1:7878 by itself, forwards `/api` to it, and stops it on exit. If `voltload serve` is already running on that port, it uses that instead. Go changes need a dev-server restart. Set `VOLTLOAD_NO_BACKEND=1` to skip starting the backend, or `VOLTLOAD_PORT` to use another port.
 
 Desktop app, production build (output in `build/bin/`)
 

@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -36,9 +37,13 @@ and its result saved first.`,
 			}
 			serveDataDir = dir
 		}
+		ui, err := fs.Sub(assets, "frontend/dist") // the embed root is the repo; the built UI is in frontend/dist
+		if err != nil {
+			return err
+		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		return gui.Serve(ctx, assets, serveAddr, serveDataDir, func(url string) {
+		return gui.Serve(ctx, ui, serveAddr, serveDataDir, func(url string) {
 			fmt.Fprintf(os.Stderr, "VoltLoad is running at %s  (Ctrl+C to stop)\n", url)
 			if serveOpen {
 				openBrowser(url)

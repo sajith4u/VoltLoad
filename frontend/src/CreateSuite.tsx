@@ -1,5 +1,6 @@
 import {FormEvent, useState} from 'react';
-import {LoadScenario, SaveSuite} from '../wailsjs/go/gui/App';
+import {LoadScenario, ParseScenario, SaveSuite} from '../wailsjs/go/gui/App';
+import {isDesktop, pickTextFile} from './bridge';
 import {Form, emptyForm, fromConfig, toSuite} from './form';
 import {DetailsFields, RequestFields, ThresholdFields, WorkloadFields, workloadSummary} from './SuiteFields';
 
@@ -34,7 +35,13 @@ export default function CreateSuite({onCreated, onCancel}: { onCreated: (id: num
     async function importYaml() {
         setError('');
         try {
-            const c = await LoadScenario();
+            let c;
+            if (isDesktop) {
+                c = await LoadScenario();
+            } else {
+                const text = await pickTextFile('.yaml,.yml');
+                c = text === null ? null : await ParseScenario(text);
+            }
             if (c) setForm(f => fromConfig(c, f));
         } catch (err) {
             setError(String(err));

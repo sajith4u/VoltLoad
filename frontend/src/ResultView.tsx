@@ -1,5 +1,6 @@
 import {useState} from 'react';
 import {ExportRun, OpenRunPDF} from '../wailsjs/go/gui/App';
+import {isDesktop} from './bridge';
 import Chart, {Point} from './Chart';
 import {loader} from '../wailsjs/go/models';
 
@@ -33,7 +34,14 @@ export default function ResultView({result: r, runId, showTimeline}: { result: l
         timeline.map(s => ({x: s.elapsedSec, y: get(s), label: `${s.elapsedSec.toFixed(1)}s`}));
     const xEnd = timeline.length ? `${timeline[timeline.length - 1].elapsedSec.toFixed(0)}s` : undefined;
 
+    const reportURL = (format: string, download = false) => `/api/runs/${runId}/report.${format}${download ? '?download=1' : ''}`;
+
     async function viewPDF() {
+        if (!isDesktop) {
+            // the browser's own PDF viewer, in a new tab
+            if (!window.open(reportURL('pdf'), '_blank', 'noopener')) setNote('Allow pop-ups for this page to open the PDF report.');
+            return;
+        }
         try {
             setNote(`PDF report opened: ${await OpenRunPDF(runId)}`);
         } catch (err) {
@@ -42,6 +50,10 @@ export default function ResultView({result: r, runId, showTimeline}: { result: l
     }
 
     async function exportAs(format: string) {
+        if (!isDesktop) {
+            Object.assign(document.createElement('a'), {href: reportURL(format, true)}).click();
+            return;
+        }
         try {
             const path = await ExportRun(runId, format);
             setNote(path ? `Saved to ${path}` : '');

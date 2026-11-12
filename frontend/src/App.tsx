@@ -1,7 +1,6 @@
 import {useEffect, useState} from 'react';
 import {RunSuite, RunningSuite, StopTest} from '../wailsjs/go/gui/App';
 import {EventsOn} from '../wailsjs/runtime/runtime';
-import {isPreview} from './preview';
 import {DoneEvent, EventDone, EventLog, EventProgress, LogEntry, Snapshot} from './events';
 import Dashboard from './Dashboard';
 import CreateSuite from './CreateSuite';
@@ -72,12 +71,6 @@ export default function App() {
                 <button className="primary" onClick={() => setView({page: 'create'})}>+ Create suite</button>
             </header>
 
-            {isPreview && (
-                <div className="preview-banner" role="status">
-                    <strong>Preview mode.</strong> This page is open in a browser, not the VoltLoad desktop window, so it shows
-                    sample data and simulated runs. No real requests are sent and nothing is saved.
-                </div>
-            )}
 
             <main>
                 {error && <div className="error" role="alert">{error}</div>}

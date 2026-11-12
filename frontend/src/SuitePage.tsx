@@ -1,5 +1,6 @@
 import {FormEvent, useEffect, useState} from 'react';
-import {DeleteRun, DeleteSuite, GetRun, GetSuite, ListRuns, SaveScenario, SaveSuite} from '../wailsjs/go/gui/App';
+import {DeleteRun, DeleteSuite, GetRun, GetSuite, ListRuns, SaveScenario, SaveSuite, ScenarioYAML} from '../wailsjs/go/gui/App';
+import {downloadText, isDesktop} from './bridge';
 import {loader, store} from '../wailsjs/go/models';
 import {Form, fromSuite, timeAgo, toConfig, toSuite} from './form';
 import {DetailsFields, RequestFields, ThresholdFields, WorkloadFields, workloadSummary} from './SuiteFields';
@@ -126,6 +127,11 @@ function ConfigTab({form, setForm, dirty, locked, onSaved, onDeleted}: {
     async function exportYaml() {
         setError(''); setNote('');
         try {
+            if (!isDesktop) {
+                const slug = form.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'scenario';
+                downloadText(await ScenarioYAML(toConfig(form)), `${slug}.yaml`, 'application/yaml');
+                return;
+            }
             const path = await SaveScenario(toConfig(form));
             if (path) setNote(`Exported to ${path}`);
         } catch (err) {

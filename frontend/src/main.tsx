@@ -1,4 +1,4 @@
-import './preview'; // must come first: installs a stand-in bridge when not running inside Wails
+import './bridge'; // must come first: connects the UI to the Go backend when not inside the desktop window
 import React from 'react';
 import {createRoot} from 'react-dom/client';
 import './style.css';
